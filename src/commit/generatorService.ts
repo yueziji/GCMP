@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  提交消息生成服务
  *  通过 VS Code Language Model API 调用模型生成提交消息
  *--------------------------------------------------------------------------------------------*/
@@ -13,7 +13,7 @@ import {
 } from './types';
 import { PromptService } from './promptService';
 import type { GitDiffParts, GitDiffSection } from './gitService';
-import { CompatibleModelManager, ConfigManager, Logger } from '../utils';
+import { CompatibleModelManager, ConfigManager, Logger, toExposedModelId } from '../utils';
 
 function throwIfCancelled(token: vscode.CancellationToken): void {
     if (token.isCancellationRequested) {
@@ -27,6 +27,7 @@ function throwIfCancelled(token: vscode.CancellationToken): void {
  */
 export class GeneratorService {
     private static readonly MAX_CONTEXT_CHARS_PER_MESSAGE = 14000;
+
     /**
      * 获取 Commit 可用提供商列表（providerKey + 展示名 + vendor）。
      * 逻辑参照 JsonSchemaProvider#getCommitModelSchema：
@@ -74,7 +75,7 @@ export class GeneratorService {
 
         if (key === 'compatible') {
             return CompatibleModelManager.getModels()
-                .map(m => ({ id: m.id, name: m.name || m.id }))
+                .map(m => ({ id: toExposedModelId(key, m.id), name: m.name || m.id }))
                 .filter(m => Boolean(m.id));
         }
 
@@ -85,7 +86,9 @@ export class GeneratorService {
         }
 
         const effectiveConfig = ConfigManager.applyProviderOverrides(key, originalConfig);
-        return (effectiveConfig.models ?? []).map(m => ({ id: m.id, name: m.name || m.id })).filter(m => Boolean(m.id));
+        return (effectiveConfig.models ?? [])
+            .map(m => ({ id: toExposedModelId(key, m.id), name: m.name || m.id }))
+            .filter(m => Boolean(m.id));
     }
 
     /**
@@ -152,9 +155,9 @@ export class GeneratorService {
         messages.push(
             vscode.LanguageModelChatMessage.User(
                 `${diffNoticeParts.join('\n')}` +
-                    `${blameContext ? '\nBlame analysis has also been provided in a previous message. Please use it as context.' : ''}` +
-                    `${commitConfig.format === 'auto' && repoHistory ? '\nRepository-wide recent commit history has also been provided in a previous message. Please use it to infer the style.' : ''}` +
-                    `\n\n${finalPrompt}`
+                `${blameContext ? '\nBlame analysis has also been provided in a previous message. Please use it as context.' : ''}` +
+                `${commitConfig.format === 'auto' && repoHistory ? '\nRepository-wide recent commit history has also been provided in a previous message. Please use it to infer the style.' : ''}` +
+                `\n\n${finalPrompt}`
             )
         );
 
@@ -230,10 +233,20 @@ export class GeneratorService {
             }
 
             try {
-                const candidates = await vscode.lm.selectChatModels({
-                    id: modelId,
+                const exposedModelId = toExposedModelId(provider, modelId);
+                let candidates = await vscode.lm.selectChatModels({
+                    id: exposedModelId,
                     vendor: `gcmp.${provider}`
                 });
+
+                // 兼容旧配置：历史上 commit.model.model 可能保存的是未加前缀的原始 ID。
+                if (!candidates?.length && exposedModelId !== modelId) {
+                    candidates = await vscode.lm.selectChatModels({
+                        id: modelId,
+                        vendor: `gcmp.${provider}`
+                    });
+                }
+
                 return candidates?.[0] ?? null;
             } catch {
                 // 查询失败视为模型不可用
@@ -271,7 +284,7 @@ export class GeneratorService {
         const modelId = (afterSelection?.model ?? configuredSelection?.model ?? '(未指定)').trim() || '(未指定)';
         throw new ModelNotFoundError(
             `配置的模型 "${providerKey}:${modelId}" 不可用或未启用。` +
-                '请运行“GCMP: 选择 Commit 模型”重新选择，或检查对应提供商模型是否已启用。'
+            '请运行“GCMP: 选择 Commit 模型”重新选择，或检查对应提供商模型是否已启用。'
         );
     }
 

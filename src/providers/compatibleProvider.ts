@@ -280,9 +280,10 @@ export class CompatibleProvider extends GenericModelProvider {
         try {
             // 获取最新的动态配置
             const currentConfig = this.providerConfig;
+            const rawModelId = this.toRawModelId(model.id);
 
             // 查找对应的模型配置
-            const modelConfig = currentConfig.models.find(m => m.id === model.id);
+            const modelConfig = currentConfig.models.find(m => m.id === rawModelId);
             if (!modelConfig) {
                 const errorMessage = `Compatible Provider 未找到模型: ${model.id}`;
                 Logger.error(errorMessage);
@@ -331,7 +332,7 @@ export class CompatibleProvider extends GenericModelProvider {
                 requestId = await usagesManager.recordEstimatedTokens({
                     providerKey: actualProviderKey,
                     displayName: actualDisplayName,
-                    modelId: model.id,
+                    modelId: rawModelId,
                     modelName: model.name,
                     estimatedInputTokens: totalInputTokens
                 });

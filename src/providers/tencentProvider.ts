@@ -118,7 +118,8 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
         progress: Progress<vscode.LanguageModelResponsePart>,
         _token: CancellationToken
     ): Promise<void> {
-        const rawModelConfig = this.providerConfig.models.find((item: ModelConfig) => item.id === model.id);
+        const rawModelId = this.toRawModelId(model.id);
+        const rawModelConfig = this.providerConfig.models.find((item: ModelConfig) => item.id === rawModelId);
         if (!rawModelConfig) {
             const errorMessage = `未找到模型: ${model.id}`;
             Logger.error(errorMessage);
@@ -144,7 +145,7 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
             requestId = await usagesManager.recordEstimatedTokens({
                 providerKey,
                 displayName: this.providerConfig.displayName,
-                modelId: model.id,
+                modelId: rawModelId,
                 modelName: model.name || modelConfig.name,
                 estimatedInputTokens: totalInputTokens
             });

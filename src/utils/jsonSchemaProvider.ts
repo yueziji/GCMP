@@ -10,6 +10,7 @@ import { Logger } from './logger';
 import type { JSONSchema7 } from 'json-schema';
 import { KnownProviders } from './knownProviders';
 import { CompatibleModelManager } from './compatibleModelManager';
+import { toExposedModelId } from './modelIdUtils';
 
 /**
  * 扩展的 JSON Schema 接口，支持 VS Code 特有的 enumDescriptions 属性
@@ -695,7 +696,10 @@ export class JsonSchemaProvider {
             commitProviderDescriptions.push(originalConfig.displayName || providerKey);
 
             const effectiveConfig = ConfigManager.applyProviderOverrides(providerKey, originalConfig);
-            providerModelIdsMap[providerKey] = (effectiveConfig.models ?? []).map(m => m.id).filter(Boolean);
+            const modelIds = (effectiveConfig.models ?? []).map(m => m.id).filter(Boolean);
+            providerModelIdsMap[providerKey] = Array.from(
+                new Set(modelIds.flatMap(modelId => [toExposedModelId(providerKey, modelId), modelId]))
+            );
         }
 
         // Compatible Provider（providerKey = compatible）
@@ -706,7 +710,9 @@ export class JsonSchemaProvider {
             commitProviderIds.push('compatible');
             commitProviderDescriptions.push('OpenAI / Anthropic Compatible');
         }
-        providerModelIdsMap['compatible'] = compatibleModelIds;
+        providerModelIdsMap['compatible'] = Array.from(
+            new Set(compatibleModelIds.flatMap(modelId => [toExposedModelId('compatible', modelId), modelId]))
+        );
 
         const base: JSONSchema7 = {
             type: 'object',

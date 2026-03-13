@@ -14,7 +14,7 @@ import {
     Progress
 } from 'vscode';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
-import { ApiKeyManager, ConfigManager, Logger, ModelInfoCache, TokenCounter, PromptAnalyzer } from '../utils';
+import { ApiKeyManager, ConfigManager, Logger, ModelInfoCache, TokenCounter, PromptAnalyzer, toExposedModelId, toRawModelId } from '../utils';
 import { OpenAIHandler } from '../handlers/openaiHandler';
 import { OpenAICustomHandler } from '../handlers/openaiCustomHandler';
 import { AnthropicHandler } from '../handlers/anthropicHandler';
@@ -139,7 +139,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         // 确定 family：优先使用模型配置的 family 字段，否则根据 sdkMode 自动推断
         const family = this.resolveFamily(model);
         const info: LanguageModelChatInformation = {
-            id: model.id,
+            // 暴露给 VS Code 的模型 ID 使用 provider 前缀，避免与其它 provider 的同名/同ID模型冲突。
+            id: this.toExposedModelId(model.id),
             name: model.name,
             detail: this.providerConfig.displayName,
             tooltip: model.tooltip,
@@ -150,6 +151,20 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             capabilities: model.capabilities
         };
         return info;
+    }
+
+    /**
+     * 生成对外暴露给 VS Code 的模型 ID
+     */
+    protected toExposedModelId(rawModelId: string): string {
+        return toExposedModelId(this.providerKey, rawModelId);
+    }
+
+    /**
+     * 将外部模型 ID 还原为配置中的原始模型 ID
+     */
+    protected toRawModelId(exposedModelId: string): string {
+        return toRawModelId(this.providerKey, exposedModelId);
     }
 
     /**
@@ -285,8 +300,10 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         progress: Progress<vscode.LanguageModelResponsePart>,
         token: CancellationToken
     ): Promise<void> {
+        const rawModelId = this.toRawModelId(model.id);
+
         // 查找对应的模型配置
-        const modelConfig = this.providerConfig.models.find((m: ModelConfig) => m.id === model.id);
+        const modelConfig = this.providerConfig.models.find((m: ModelConfig) => m.id === rawModelId);
         if (!modelConfig) {
             const errorMessage = `未找到模型: ${model.id}`;
             Logger.error(errorMessage);
@@ -307,7 +324,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             requestId = await usagesManager.recordEstimatedTokens({
                 providerKey: effectiveProviderKey,
                 displayName: this.providerConfig.displayName,
-                modelId: model.id,
+                modelId: rawModelId,
                 modelName: model.name || modelConfig.name,
                 estimatedInputTokens: totalInputTokens
             });

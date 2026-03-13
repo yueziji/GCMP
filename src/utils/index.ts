@@ -22,3 +22,4 @@ export { RetryManager } from './retryManager';
 export { ModelInfoCache } from './modelInfoCache';
 export { TokenCounter } from './tokenCounter';
 export { PromptAnalyzer } from './promptAnalyzer';
+export { toExposedModelId, toRawModelId } from './modelIdUtils';

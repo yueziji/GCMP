@@ -215,8 +215,9 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
         progress: Progress<vscode.LanguageModelResponsePart>,
         _token: CancellationToken
     ): Promise<void> {
+        const rawModelId = this.toRawModelId(model.id);
         // 查找对应的模型配置
-        const modelConfig = this.providerConfig.models.find((m: ModelConfig) => m.id === model.id);
+        const modelConfig = this.providerConfig.models.find((m: ModelConfig) => m.id === rawModelId);
         if (!modelConfig) {
             const errorMessage = `未找到模型: ${model.id}`;
             Logger.error(errorMessage);
@@ -247,7 +248,7 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
             requestId = await usagesManager.recordEstimatedTokens({
                 providerKey: providerKey,
                 displayName: this.providerConfig.displayName,
-                modelId: model.id,
+                modelId: rawModelId,
                 modelName: model.name || modelConfig.name,
                 estimatedInputTokens: totalInputTokens
             });
